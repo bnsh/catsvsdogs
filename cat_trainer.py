@@ -239,7 +239,7 @@ def main():
 			now = time.time()
 			elapsed = now-epoch_start
 			sys.stderr.write("elapsed: %.2fs epoch: %d: trainloss: %.7f validationloss: %.7f %s\n" % \
-				(elapsed, epoch, math.sqrt(trainloss), math.sqrt(validationloss), new_best))
+				(elapsed, epoch, trainloss, validationloss, new_best))
 
 
 if __name__ == "__main__":
