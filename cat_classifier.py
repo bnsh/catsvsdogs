@@ -43,7 +43,7 @@ def main(argv):
 		input_images_np = np.zeros((len(argv), 256, 256, 3))
 		for idx, imgfn in enumerate(argv):
 			img = Image.open(imgfn)
-			input_images_np[idx] = np.array(center_crop(img))
+			input_images_np[idx] = 2.0 * np.array(center_crop(img)) / 255.0 - 1
 			img.close()
 
 		logits_np = sess.run(logits_op, feed_dict={input_images_: input_images_np, \
