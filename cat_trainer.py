@@ -76,7 +76,7 @@ def main():
 	activation = rrelu(training_, 1./8., 1./3.)
 
 	with tf.variable_scope("input"):
-		input_images_ = tf.placeholder(name="images", shape=(None, 256, 256, 3), dtype=tf.float32)
+		input_images_ = tf.placeholder(name="images", shape=(None, None, None, 3), dtype=tf.float32)
 
 	with tf.variable_scope("targets"):
 		dog_predicates_ = tf.placeholder(name="target", shape=(None, 1), dtype=tf.float32)
@@ -217,7 +217,7 @@ def main():
 					np_input_images[idx] = (np.array(resized) / 255.0) * 2.0 - 1.0
 					img.close()
 
-				[batchloss, preds] = sess.run([loss, predictions], feed_dict={input_images_: np_input_images, dog_predicates_: np_dog_predicates, training_: True})
+				[batchloss, preds] = sess.run([loss, predictions], feed_dict={input_images_: np_input_images, dog_predicates_: np_dog_predicates, training_: False})
 				for idx in xrange(0, actualsz):
 					filename, isdog = valcopy[idx+start]
 					valcopy[idx+start] = (filename, isdog, float(preds[(idx, 0)]))
