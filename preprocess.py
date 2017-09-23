@@ -9,6 +9,7 @@
    let's see if we can just do that at training time.
 """
 
+import sys
 import os
 import re
 import json
@@ -53,7 +54,10 @@ def grab_images(argv):
 
 #pylint: disable=too-many-locals
 def main(argv):
-	images, data = grab_images(argv)
+	basedir = argv[0]
+	images_train = os.path.join(basedir, "images/train")
+	images_cropped = os.path.join(basedir, "images-cropped")
+	images, data = grab_images([images_train])
 
 	intermediatesz = 384
 	for filename in images:
@@ -79,7 +83,7 @@ def main(argv):
 		if digits % 10 == 9:
 			mode = "validation"
 
-		subdir = "/dogs/images-cropped/%s/%s" % (mode, digdir)
+		subdir = "%s/%s/%s" % (images_cropped, mode, digdir)
 		if not os.path.exists(subdir):
 			os.makedirs(subdir, mode=0775)
 		newfilename = "%s/%s.%d.jpg" % (subdir, catdog, digits)
@@ -89,8 +93,8 @@ def main(argv):
 
 
 		img.close()
-	with open("/dogs/images-cropped/info.json", "w") as jsonfp:
+	with open(os.path.join(images_cropped, "info.json"), "w") as jsonfp:
 		json.dump(data, jsonfp, indent=4, sort_keys=True)
 
 if __name__ == "__main__":
-	main(["/dogs/images/train"])
+	main(sys.argv[1:])

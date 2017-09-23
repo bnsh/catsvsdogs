@@ -74,23 +74,29 @@ def random_rotation(filtered):
 		(rsz + rotatedsz) / 2 \
 	))
 
+#pylint: disable=too-many-locals
 def process_images(training, start, data, queue):
 	"""This function applies all the image manipulations"""
-	filenames, dog_predicates = zip(*data)
-	actualsz = len(data)
-	np_input_images = np.zeros((actualsz, 256, 256, 3))
-	np_dog_predicates = np.array(dog_predicates).reshape(len(data), 1)
-	for idx in xrange(0, actualsz):
-		img = Image.open(filenames[idx])
-		if training:
-			cropped = random_crop(img, 192, 384)
-			filtered = random_filter(cropped)
-			rotated = random_rotation(filtered)
-			resized = rotated.resize((256, 256), resample=Image.BICUBIC)
-		else:
-			resized = img.resize((256, 256), resample=Image.BICUBIC)
-		np_input_images[idx] = (np.array(resized) / 255.0) * 2.0 - 1.0
-	queue.put((start, np_input_images, np_dog_predicates, actualsz))
+	#pylint: disable=broad-except
+	try:
+		filenames, dog_predicates = zip(*data)
+		actualsz = len(data)
+		np_input_images = np.zeros((actualsz, 256, 256, 3))
+		np_dog_predicates = np.array(dog_predicates).reshape(len(data), 1)
+		for idx in xrange(0, actualsz):
+			img = Image.open(filenames[idx])
+			if training:
+				cropped = random_crop(img, 192, 384)
+				filtered = random_filter(cropped)
+				rotated = random_rotation(filtered)
+				resized = rotated.resize((256, 256), resample=Image.BICUBIC)
+			else:
+				resized = img.resize((256, 256), resample=Image.BICUBIC)
+			np_input_images[idx] = (np.array(resized) / 255.0) * 2.0 - 1.0
+		queue.put((start, np_input_images, np_dog_predicates, actualsz))
+	except Exception as exc:
+		print exc
+		sys.exit(0)
 
 #pylint: disable=too-many-locals,too-many-arguments
 def single_epoch(sess, epoch, info, logdir, input_images_, dog_predicates_, training_, action_op, loss_op, training):
