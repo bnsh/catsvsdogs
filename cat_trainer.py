@@ -16,14 +16,17 @@ import numpy as np
 import tensorflow as tf
 
 def rrelu(training, low, high):
+	"""This function _generates_ a rrelu node."""
 	midval = low + (high - low) / 2.0
 	def func(input_):
+		"""This is the _actual_ rrelu function"""
 		loval = tf.cond(training, true_fn=lambda: low, false_fn=lambda: midval)
 		hival = tf.cond(training, true_fn=lambda: high, false_fn=lambda: midval)
 		return tf.maximum(tf.random_uniform(shape=tf.shape(input_), minval=loval, maxval=hival) * input_, input_)
 	return func
 
 def random_crop(resized, minsz, maxsz):
+	"""Crop resized to a random square between minsz and maxsz"""
 	rsz = random.randint(minsz, maxsz)
 	# Now, pick a random starting point, given that rsz.
 	rxx = random.randint(0, maxsz - rsz)
@@ -32,6 +35,7 @@ def random_crop(resized, minsz, maxsz):
 	return resized.crop((rxx, ryy, rxx+rsz, ryy+rsz))
 
 def random_filter(cropped):
+	"""Apply a random 3x3 sharpen/blur filter on cropped"""
 	# Now, let's do a random filter.
 	# Maybe... Between a complete blur (all uniform)
 	# to 9 in the center and -1.0 all around?
@@ -52,6 +56,7 @@ def random_filter(cropped):
 	return cropped.filter(sharpen_or_blur)
 
 def random_rotation(filtered):
+	"""Apply a random rotation on filtered"""
 	width, height = filtered.size
 	assert width == height
 	rsz = width
@@ -70,6 +75,7 @@ def random_rotation(filtered):
 	))
 
 def process_images(training, start, data, queue):
+	"""This function applies all the image manipulations"""
 	filenames, dog_predicates = zip(*data)
 	actualsz = len(data)
 	np_input_images = np.zeros((actualsz, 256, 256, 3))
@@ -87,7 +93,8 @@ def process_images(training, start, data, queue):
 	queue.put((start, np_input_images, np_dog_predicates, actualsz))
 
 #pylint: disable=too-many-locals,too-many-arguments
-def single_epoch(sess, epoch, info, input_images_, dog_predicates_, training_, action_op, loss_op, training):
+def single_epoch(sess, epoch, info, logdir, input_images_, dog_predicates_, training_, action_op, loss_op, training):
+	"""Run a single epoch."""
 	evaluation_mode = "train" if training else "validation"
 	batchsz = 64
 
@@ -129,13 +136,15 @@ def single_epoch(sess, epoch, info, input_images_, dog_predicates_, training_, a
 
 	loss = loss / len(info[evaluation_mode])
 	if valcopy is not None:
-		with open("/dogs/logs/%08d.json" % (epoch), "w") as logfp:
+		with open(os.path.join(logdir, "%08d.json" % (epoch)), "w") as logfp:
 			json.dump(valcopy, logfp, indent=4, sort_keys=True)
 
 	return loss
 
 #pylint: disable=not-context-manager,too-many-locals,too-many-statements
-def main():
+def main(argv):
+	"""This is the main program. D-uh."""
+	basedir = argv[0]
 	with tf.variable_scope("configuration"):
 		training_ = tf.placeholder(name="training_predicate", shape=(), dtype=tf.bool)
 
@@ -231,30 +240,35 @@ def main():
 		validation_cost_scalar = tf.summary.scalar("validation_cost", validation_cost_)
 		train_cost_scalar = tf.summary.scalar("train_cost", train_cost_)
 
-	tensorboarddir = "/dogs/tensorboard"
+	tensorboarddir = os.path.join(basedir, "tensorboard")
+	logdir = os.path.join(basedir, "logs")
+	imagesdir = os.path.join(basedir, "images-cropped")
+	restoredir = os.path.join(basedir, "restore")
+
 	with tf.Session() as sess:
 		sess.run(tf.global_variables_initializer())
 		if os.path.exists(tensorboarddir):
 			shutil.rmtree(tensorboarddir)
-		if os.path.exists("/dogs/restore/bestsofar.ckpt.meta"):
-			sys.stderr.write("Restoring %s\n" % ("/dogs/restore/bestsofar.ckpt"))
+		if os.path.exists(os.path.join(restoredir, "bestsofar.ckpt.meta")):
+			ckpt = os.path.join(restoredir, "bestsofar.ckpt")
+			sys.stderr.write("Restoring %s\n" % (ckpt))
 			restorer = tf.train.Saver()
-			restorer.restore(sess, "/dogs/restore/bestsofar.ckpt")
+			restorer.restore(sess, ckpt)
 		writer = tf.summary.FileWriter(tensorboarddir, sess.graph)
 		saver = tf.train.Saver()
 
-		with open("/dogs/images-cropped/info.json", "r") as infofp:
+		with open(os.path.join(imagesdir, "info.json"), "r") as infofp:
 			info = json.load(infofp)
 
 		epoch = 0
-		best_ce = single_epoch(sess, epoch, info, input_images_, dog_predicates_, training_, loss_op=loss, action_op=predictions, training=False)
+		best_ce = single_epoch(sess, epoch, info, logdir, input_images_, dog_predicates_, training_, loss_op=loss, action_op=predictions, training=False)
 		sys.stderr.write("Starting with best_ce=%.7f\n" % (best_ce))
 		while True:
 			epoch_start = time.time()
 			epoch += 1
 			# one epoch.
-			trainloss = single_epoch(sess, epoch, info, input_images_, dog_predicates_, training_, loss_op=loss, action_op=step, training=True)
-			validationloss = single_epoch(sess, epoch, info, input_images_, dog_predicates_, training_, loss_op=loss, action_op=predictions, training=False)
+			trainloss = single_epoch(sess, epoch, info, logdir, input_images_, dog_predicates_, training_, loss_op=loss, action_op=step, training=True)
+			validationloss = single_epoch(sess, epoch, info, logdir, input_images_, dog_predicates_, training_, loss_op=loss, action_op=predictions, training=False)
 			tcost, vcost = sess.run([train_cost_scalar, validation_cost_scalar], feed_dict={train_cost_: trainloss, validation_cost_: validationloss})
 			writer.add_summary(tcost, epoch)
 			writer.add_summary(vcost, epoch)
@@ -264,6 +278,7 @@ def main():
 				new_best = "New Best"
 				best_ce = validationloss
 				saver.save(sess, os.path.join(tensorboarddir, "bestsofar.ckpt"))
+				saver.save(sess, os.path.join(tensorboarddir, "last.ckpt"))
 
 			now = time.time()
 			elapsed = now-epoch_start
@@ -272,4 +287,4 @@ def main():
 
 
 if __name__ == "__main__":
-	main()
+	main(sys.argv[1:])
