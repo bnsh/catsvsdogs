@@ -9,6 +9,7 @@ import numpy as np
 import tensorflow as tf
 
 def center_crop(img):
+	"""Crop the maximum center square crop from img"""
 	width, height = img.size
 	rsz = min(width, height)
 	rxx = (width - rsz) / 2
@@ -17,6 +18,7 @@ def center_crop(img):
 	return img.crop((rxx, ryy, rxx+rsz, ryy+rsz)).resize((256, 256), resample=Image.BICUBIC)
 
 def traverse(dirname, func):
+	"""traverse dirname and apply func to every _file_ in dirname recursively"""
 	if os.path.isdir(dirname):
 		children = [os.path.join(dirname, child) for child in sorted(os.listdir(dirname))]
 		for child in children:
@@ -26,9 +28,13 @@ def traverse(dirname, func):
 
 #pylint: disable=not-context-manager,too-many-locals
 def main(argv):
-	assert os.path.exists("/dogs/restore/bestsofar.ckpt.meta")
-	sys.stderr.write("Restoring %s\n" % ("/dogs/restore/bestsofar.ckpt"))
-	restorer = tf.train.import_meta_graph("/dogs/restore/bestsofar.ckpt.meta")
+	"""This is the main program. D-uh."""
+	basedir = argv[0]
+	restoredir = os.path.join(basedir, "restore")
+	ckpt = os.path.join(restoredir, "bestsofar.ckpt")
+	assert os.path.exists(os.path.join(restoredir, "bestsofar.ckpt.meta"))
+	sys.stderr.write("Restoring %s\n" % (ckpt))
+	restorer = tf.train.import_meta_graph(os.path.join(restoredir, "bestsofar.ckpt.meta"))
 
 	# Ugh. I forgot to save these in a collection like I normally do. So,
 	# we have to get the variables we need by their tf ugly names.
@@ -42,7 +48,7 @@ def main(argv):
 	batchsz = 64
 	with tf.Session() as sess:
 		sess.run(tf.global_variables_initializer())
-		restorer.restore(sess, "/dogs/restore/bestsofar.ckpt")
+		restorer.restore(sess, ckpt)
 
 		position = [0]
 		files = []
@@ -50,6 +56,7 @@ def main(argv):
 
 		with open("/tmp/dogs.csv", "w") as dogfp:
 			def handle(files):
+				"""Take all the files, and run them through our classifier."""
 				sigmoids_np = sess.run(sigmoid_op, feed_dict={input_images_: input_images_np, \
 					training_: False})
 				sigmoids_np = sigmoids_np[0:position[0]].reshape((position[0])).tolist()
@@ -62,6 +69,8 @@ def main(argv):
 					files.pop()
 
 			def process(imgfn):
+				"""This function will calls center_crop to crop the image, and passes them to handle, which
+				   actually does the classification"""
 				img = Image.open(imgfn)
 				files.append(imgfn)
 				idx = position[0]
