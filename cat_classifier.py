@@ -53,7 +53,6 @@ def main(argv):
 				sigmoids_np = sess.run(sigmoid_op, feed_dict={input_images_: input_images_np, \
 					training_: False})
 				sigmoids_np = sigmoids_np[0:position[0]].reshape((position[0])).tolist()
-				print len(sigmoids_np), len(files)
 				assert len(sigmoids_np) == len(files)
 
 				for filename, probability in zip(files, sigmoids_np):
