@@ -10,6 +10,7 @@ import json
 import copy
 import math
 import shutil
+import multiprocessing as mp
 from PIL import Image, ImageFilter
 import numpy as np
 import tensorflow as tf
@@ -68,6 +69,23 @@ def random_rotation(filtered):
 		(rsz + rotatedsz) / 2 \
 	))
 
+def process_images(training, start, data, queue):
+	filenames, dog_predicates = zip(*data)
+	actualsz = len(data)
+	np_input_images = np.zeros((actualsz, 256, 256, 3))
+	np_dog_predicates = np.array(dog_predicates).reshape(len(data), 1)
+	for idx in xrange(0, actualsz):
+		img = Image.open(filenames[idx])
+		if training:
+			cropped = random_crop(img, 192, 384)
+			filtered = random_filter(cropped)
+			rotated = random_rotation(filtered)
+			resized = rotated.resize((256, 256), resample=Image.BICUBIC)
+		else:
+			resized = img.resize((256, 256), resample=Image.BICUBIC)
+		np_input_images[idx] = (np.array(resized) / 255.0) * 2.0 - 1.0
+	queue.put((start, np_input_images, np_dog_predicates, actualsz))
+
 #pylint: disable=too-many-locals,too-many-arguments
 def single_epoch(sess, epoch, info, input_images_, dog_predicates_, training_, action_op, loss_op, training):
 	evaluation_mode = "train" if training else "validation"
@@ -78,31 +96,36 @@ def single_epoch(sess, epoch, info, input_images_, dog_predicates_, training_, a
 	valcopy = None
 	if evaluation_mode == "validation":
 		valcopy = copy.deepcopy(info[evaluation_mode])
+
+	num_processes = 4
+	pool = mp.Pool(processes=num_processes)
+	manager = mp.Manager()
+	queue = manager.Queue()
+
 	for start in xrange(0, len(info[evaluation_mode]), batchsz):
 		end = min(start + batchsz, len(info[evaluation_mode]))
 		data = info[evaluation_mode][start:end]
-		filenames, dog_predicates = zip(*data)
-		actualsz = len(data)
-		np_input_images = np.zeros((actualsz, 256, 256, 3))
-		np_dog_predicates = np.array(dog_predicates).reshape(len(data), 1)
-		for idx in xrange(0, actualsz):
-			img = Image.open(filenames[idx])
-			if training:
-				cropped = random_crop(img, 192, 384)
-				filtered = random_filter(cropped)
-				rotated = random_rotation(filtered)
-				resized = rotated.resize((256, 256), resample=Image.BICUBIC)
-			else:
-				resized = img.resize((256, 256), resample=Image.BICUBIC)
-			np_input_images[idx] = (np.array(resized) / 255.0) * 2.0 - 1.0
+		pool.apply_async(process_images, args=(training, start, data, queue))
+	while queue.empty():
+		time.sleep(1)
+	time.sleep(2)
 
+	count = 0
+	while not queue.empty():
+		(start, np_input_images, np_dog_predicates, actualsz) = queue.get()
 		batchloss, preds = sess.run([loss_op, action_op], feed_dict={input_images_: np_input_images, dog_predicates_: np_dog_predicates, training_: training})
+		count += actualsz
+		if epoch <= 1:
+			sys.stderr.write("%d: %s: count=%d\n" % (epoch, evaluation_mode, count))
 
 		if valcopy is not None:
 			for idx in xrange(0, actualsz):
 				filename, isdog = valcopy[idx+start]
 				valcopy[idx+start] = (filename, isdog, float(preds[(idx, 0)]))
 		loss += batchloss * actualsz
+	assert count == len(info[evaluation_mode])
+	pool.close()
+	pool.join()
 
 	loss = loss / len(info[evaluation_mode])
 	if valcopy is not None:
