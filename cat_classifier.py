@@ -80,7 +80,7 @@ def main(argv):
 					handle(files)
 					position[0] = 0
 
-			for dirname in argv:
+			for dirname in argv[1:]:
 				traverse(dirname, process)
 				if position[0] > 0:
 					handle(files)
