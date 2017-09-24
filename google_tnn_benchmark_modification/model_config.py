@@ -25,6 +25,7 @@ import overfeat_model
 import resnet_model
 import trivial_model
 import vgg_model
+import catanddognet_model
 
 
 def get_model_config(model, dataset):
@@ -57,6 +58,8 @@ def get_model_config(model, dataset):
     mc = resnet_model.ResnetModel(model, (3, 4, 23, 3))
   elif model == 'resnet152' or model == 'resnet152_v2':
     mc = resnet_model.ResnetModel(model, (3, 8, 36, 3))
+  elif model == "catanddognet":
+    mc = catanddognet.CatAndDognet()
   else:
     raise KeyError('Invalid model name \'%s\' for dataset \'%s\'' %
                    (model, dataset.name))

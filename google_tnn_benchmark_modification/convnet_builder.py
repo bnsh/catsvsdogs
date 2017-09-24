@@ -150,6 +150,8 @@ class ConvNetBuilder(object):
         conv1 = biased
       elif activation == 'tanh':
         conv1 = tf.nn.tanh(biased)
+      elif callable(activation):
+        conv1 = activation(self.phase_train, biased)
       else:
         raise KeyError('Invalid activation type \'%s\'' % activation)
       self.top_layer = conv1
@@ -293,6 +295,19 @@ class ConvNetBuilder(object):
     self.top_layer = tf.reduce_mean(
         self.top_layer, axes, keep_dims=keep_dims, name=name)
     return self.top_layer
+
+  def dropout2d(self, keep_prob=0.5, input_layer=None):
+    if input_layer is None:
+      input_layer = self.top_layer
+    else:
+      self.top_size = None
+    name = 'dropout2d' + str(self.counts['dropout'])
+    with tf.variable_scope(name):
+      if not self.phase_train:
+        keep_prob = 1.0
+      dropout = tf.layers.dropout(input_layer, keep_prob, noise_shape=(1, 1, 1, tf.shape(input_layer)[3]))
+      self.top_layer = dropout
+      return dropout
 
   def dropout(self, keep_prob=0.5, input_layer=None):
     if input_layer is None:

@@ -176,49 +176,49 @@ def main(argv):
 
 	with tf.variable_scope("conv1"):
 		conv1 = lrn(tf.layers.conv2d(input_images_, filters=64, kernel_size=(layer1_kernel_sz, layer1_kernel_sz), strides=(1, 1), padding="same", activation=activation, kernel_initializer=tf.glorot_normal_initializer()))
-		dropped1 = tf.layers.dropout(conv1, rate=0.5, noise_shape=(1, 1, 64))
+		dropped1 = tf.layers.dropout(conv1, rate=0.5, noise_shape=(1, 1, 1, 64))
 		maxpool1 = tf.layers.max_pooling2d(dropped1, pool_size=(2, 2), strides=(2, 2), padding="same")
 		# Now, we should be at size 128x128x64
 
 	with tf.variable_scope("conv2"):
 		conv2 = lrn(tf.layers.conv2d(maxpool1, filters=128, kernel_size=(5, 5), strides=(1, 1), padding="same", activation=activation, kernel_initializer=tf.glorot_normal_initializer()))
-		dropped2 = tf.layers.dropout(conv2, rate=0.5, noise_shape=(1, 1, 128))
+		dropped2 = tf.layers.dropout(conv2, rate=0.5, noise_shape=(1, 1, 1, 128))
 		maxpool2 = tf.layers.max_pooling2d(dropped2, pool_size=(2, 2), strides=(2, 2), padding="same")
 		# Now, we should be at size 64x64x128
 
 	with tf.variable_scope("conv3"):
 		conv3 = lrn(tf.layers.conv2d(maxpool2, filters=256, kernel_size=(5, 5), strides=(1, 1), padding="same", activation=activation, kernel_initializer=tf.glorot_normal_initializer()))
-		dropped3 = tf.layers.dropout(conv3, rate=0.5, noise_shape=(1, 1, 256))
+		dropped3 = tf.layers.dropout(conv3, rate=0.5, noise_shape=(1, 1, 1, 256))
 		maxpool3 = tf.layers.max_pooling2d(dropped3, pool_size=(2, 2), strides=(2, 2), padding="same")
 		# Now, we should be at size 32x32x256
 
 	with tf.variable_scope("conv4"):
 		conv4 = tf.layers.conv2d(maxpool3, filters=256, kernel_size=(5, 5), strides=(1, 1), padding="same", activation=activation, kernel_initializer=tf.glorot_normal_initializer())
-		dropped4 = tf.layers.dropout(conv4, rate=0.5, noise_shape=(1, 1, 256))
+		dropped4 = tf.layers.dropout(conv4, rate=0.5, noise_shape=(1, 1, 1, 256))
 		maxpool4 = tf.layers.max_pooling2d(dropped4, pool_size=(2, 2), strides=(2, 2), padding="same")
 		# Now, we should be at size 16x16x256
 
 	with tf.variable_scope("conv5"):
 		conv5 = tf.layers.conv2d(maxpool4, filters=256, kernel_size=(5, 5), strides=(1, 1), padding="same", activation=activation, kernel_initializer=tf.glorot_normal_initializer())
-		dropped5 = tf.layers.dropout(conv5, rate=0.5, noise_shape=(1, 1, 256))
+		dropped5 = tf.layers.dropout(conv5, rate=0.5, noise_shape=(1, 1, 1, 256))
 		maxpool5 = tf.layers.max_pooling2d(dropped5, pool_size=(2, 2), strides=(2, 2), padding="same")
 		# Now, we should be at size 8x8x256
 
 	with tf.variable_scope("conv6"):
 		conv6 = tf.layers.conv2d(maxpool5, filters=256, kernel_size=(5, 5), strides=(1, 1), padding="same", activation=activation, kernel_initializer=tf.glorot_normal_initializer())
-		dropped6 = tf.layers.dropout(conv6, rate=0.5, noise_shape=(1, 1, 256))
+		dropped6 = tf.layers.dropout(conv6, rate=0.5, noise_shape=(1, 1, 1, 256))
 		maxpool6 = tf.layers.max_pooling2d(dropped6, pool_size=(2, 2), strides=(2, 2), padding="same")
 		# Now, we should be at size 4x4x256
 
 	with tf.variable_scope("conv7"):
 		conv7 = tf.layers.conv2d(maxpool6, filters=256, kernel_size=(3, 3), strides=(1, 1), padding="same", activation=activation, kernel_initializer=tf.glorot_normal_initializer())
-		dropped7 = tf.layers.dropout(conv7, rate=0.5, noise_shape=(1, 1, 256))
+		dropped7 = tf.layers.dropout(conv7, rate=0.5, noise_shape=(1, 1, 1, 256))
 		maxpool7 = tf.layers.max_pooling2d(dropped7, pool_size=(2, 2), strides=(2, 2), padding="same")
 		# Now, we should be at size 2x2x256
 
 	with tf.variable_scope("conv8"):
 		conv8 = tf.layers.conv2d(maxpool7, filters=1024, kernel_size=(1, 1), strides=(1, 1), padding="same", activation=activation, kernel_initializer=tf.glorot_normal_initializer())
-		dropped8 = tf.layers.dropout(conv8, rate=0.5, noise_shape=(1, 1, 1024))
+		dropped8 = tf.layers.dropout(conv8, rate=0.5, noise_shape=(1, 1, 1, 1024))
 		maxpool8 = tf.layers.max_pooling2d(dropped8, pool_size=(2, 2), strides=(2, 2), padding="same")
 		# Now, we should be at size 1x1x1024
 
