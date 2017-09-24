@@ -171,3 +171,44 @@ class Cifar10Data(Dataset):
 
   def get_image_preprocessor(self):
     return preprocessing.Cifar10ImagePreprocessor
+
+class CatsAndDogsData(Dataset):
+  """Configuration for cifar 10 dataset.
+
+  It will mount all the input images to memory.
+  """
+
+  def __init__(self, data_dir=None):
+    if data_dir is None:
+      raise ValueError('Data directory not specified')
+    super(CatsAndDogsData, self).__init__('catsanddogs', 256, 256, data_dir=data_dir,
+                                      queue_runner_required=True)
+
+  def read_data_files(self, subset='train'):
+    """Reads from data file and return images and labels in a numpy array."""
+    filenames = [os.path.join(self.data_dir, filename) for filename in sorted(os.listdir(os.path.join(self.data_dir, subset))) if filename.endswith(".pkl")]
+    inputs = []
+    for filename in filenames:
+      with gfile.Open(filename, 'r') as f:
+        inputs.append(cPickle.load(f))
+    # See http://www.cs.toronto.edu/~kriz/cifar.html for a description of the
+    # input format.
+    all_images = np.concatenate(
+        [each_input['data'] for each_input in inputs]).astype(np.float32)
+    all_labels = np.concatenate(
+        [each_input['labels'] for each_input in inputs])
+    return all_images, all_labels
+
+  def num_classes(self):
+    return 2
+
+  def num_examples_per_epoch(self, subset='train'):
+    if subset == 'train':
+      return 22380 
+    elif subset == 'validation':
+      return 2490
+    else:
+      raise ValueError('Invalid data subset "%s"' % subset)
+
+  def get_image_preprocessor(self):
+    return preprocessing.CatsAndDogsImagePreprocessor

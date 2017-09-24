@@ -1,8 +1,0 @@
-{
-	"processes": 5,
-	"batchsz": 32,
-	"basedir": "./dogs",
-	"layer1_kernel_size": 7,
-	"local_response_normalization": false,
-	"chkpt_file": "2.7.false.chkpt"
-}
