@@ -56,6 +56,8 @@ def main(argv):
 		input_images_np = np.zeros((batchsz, 256, 256, 3))
 
 		with open("/tmp/dogs.csv", "w") as dogfp:
+			dogfp.write("id,label\n")
+			sys.stderr.write("id,label\n")
 			def handle(files):
 				"""Take all the files, and run them through our classifier."""
 				sigmoids_np = sess.run(sigmoid_op, feed_dict={input_images_: input_images_np, \
@@ -63,8 +65,6 @@ def main(argv):
 				sigmoids_np = sigmoids_np[0:position[0]].reshape((position[0])).tolist()
 				assert len(sigmoids_np) == len(files)
 
-				dogfp.write("id,label\n")
-				sys.stderr.write("id,label\n")
 				for filename, probability in zip(files, sigmoids_np):
 					match = re.match(r'^.*/([0-9]+)\.jpg$', filename)
 					if match:
