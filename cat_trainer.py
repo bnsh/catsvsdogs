@@ -94,16 +94,15 @@ def process_images(training, start, data, queue):
 				resized = img.resize((256, 256), resample=Image.BICUBIC)
 			np_input_images[idx] = (np.array(resized) / 255.0) * 2.0 - 1.0
 		queue.put((start, np_input_images, np_dog_predicates, actualsz))
+		return None
 	except Exception as exc:
 		print exc
 		sys.exit(0)
 
 #pylint: disable=too-many-locals,too-many-arguments
-def single_epoch(num_processes, sess, epoch, info, logdir, input_images_, dog_predicates_, training_, action_op, loss_op, training):
+def single_epoch(num_processes, batchsz, sess, epoch, info, logdir, input_images_, dog_predicates_, training_, action_op, loss_op, training):
 	"""Run a single epoch."""
 	evaluation_mode = "train" if training else "validation"
-	batchsz = 64
-
 	random.shuffle(info[evaluation_mode])
 	loss = 0
 	valcopy = None
@@ -154,10 +153,12 @@ def main(argv):
 	with open(configfile, "r") as jsonfp:
 		config = json.load(jsonfp)
 		basedir = config["basedir"]
+		batchsz= config['batchsz']
 		layer1_kernel_sz = int(config["layer1_kernel_size"])
 		if config["local_response_normalization"]:
 			lrn = lambda x: tf.nn.lrn(x, 4, bias=1.0, alpha=0.001 / 9.0, beta=0.75)
 		num_processes = int(config["processes"])
+        chkpt_file = config['chkpt_file']
 
 	with tf.variable_scope("configuration"):
 		training_ = tf.placeholder(name="training_predicate", shape=(), dtype=tf.bool)
@@ -261,28 +262,30 @@ def main(argv):
 
 	with tf.Session() as sess:
 		sess.run(tf.global_variables_initializer())
+		with open(os.path.join(imagesdir, "info.json"), "r") as infofp:
+			info = json.load(infofp)
 		if os.path.exists(tensorboarddir):
 			shutil.rmtree(tensorboarddir)
-		if os.path.exists(os.path.join(restoredir, "bestsofar.ckpt.meta")):
-			ckpt = os.path.join(restoredir, "bestsofar.ckpt")
+		print os.path.join(restoredir, chkpt_file, "")
+		if os.path.exists(os.path.join(restoredir, chkpt_file, chkpt_file + ".meta")):
+			ckpt = os.path.join(restoredir, chkpt_file, chkpt_file)
 			sys.stderr.write("Restoring %s\n" % (ckpt))
+#			restorer = tf.train.import_meta_graph(os.path.join(restoredir, chkpt_file +".meta"))
+#			restorer.restore(sess, restoredir)
 			restorer = tf.train.Saver()
 			restorer.restore(sess, ckpt)
 		writer = tf.summary.FileWriter(tensorboarddir, sess.graph)
 		saver = tf.train.Saver()
 
-		with open(os.path.join(imagesdir, "info.json"), "r") as infofp:
-			info = json.load(infofp)
-
 		epoch = 0
-		best_ce = single_epoch(num_processes, sess, epoch, info, logdir, input_images_, dog_predicates_, training_, loss_op=loss, action_op=predictions, training=False)
+		best_ce = single_epoch(num_processes, batchsz, sess, epoch, info, logdir, input_images_, dog_predicates_, training_, loss_op=loss, action_op=predictions, training=False)
 		sys.stderr.write("Starting with best_ce=%.7f\n" % (best_ce))
 		while True:
 			epoch_start = time.time()
 			epoch += 1
 			# one epoch.
-			trainloss = single_epoch(num_processes, sess, epoch, info, logdir, input_images_, dog_predicates_, training_, loss_op=loss, action_op=step, training=True)
-			validationloss = single_epoch(num_processes, sess, epoch, info, logdir, input_images_, dog_predicates_, training_, loss_op=loss, action_op=predictions, training=False)
+			trainloss = single_epoch(num_processes, batchsz, sess, epoch, info, logdir, input_images_, dog_predicates_, training_, loss_op=loss, action_op=step, training=True)
+			validationloss = single_epoch(num_processes, batchsz, sess, epoch, info, logdir, input_images_, dog_predicates_, training_, loss_op=loss, action_op=predictions, training=False)
 			tcost, vcost = sess.run([train_cost_scalar, validation_cost_scalar], feed_dict={train_cost_: trainloss, validation_cost_: validationloss})
 			writer.add_summary(tcost, epoch)
 			writer.add_summary(vcost, epoch)
@@ -292,7 +295,8 @@ def main(argv):
 			if best_ce is None or validationloss < best_ce:
 				new_best = "New Best"
 				best_ce = validationloss
-				saver.save(sess, os.path.join(tensorboarddir, "bestsofar.ckpt"))
+				sys.stderr.write("saving to %s" % chkpt_file)
+				saver.save(sess, os.path.join(restoredir,  chkpt_file, chkpt_file))
 
 			now = time.time()
 			elapsed = now-epoch_start
