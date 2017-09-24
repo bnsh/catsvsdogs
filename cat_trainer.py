@@ -290,13 +290,13 @@ def main(argv):
 			writer.add_summary(tcost, epoch)
 			writer.add_summary(vcost, epoch)
 
+			saver.save(sess, os.path.join(tensorboarddir, "last.ckpt"))
 			new_best = ""
 			if best_ce is None or validationloss < best_ce:
 				new_best = "New Best"
 				best_ce = validationloss
 				sys.stderr.write("saving to %s" % chkpt_file)
 				saver.save(sess, os.path.join(restoredir,  chkpt_file, chkpt_file))
-				saver.save(sess, os.path.join(tensorboarddir, "last.ckpt"))
 
 			now = time.time()
 			elapsed = now-epoch_start

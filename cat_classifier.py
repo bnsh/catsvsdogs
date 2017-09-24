@@ -4,6 +4,7 @@
 
 import sys
 import os
+import re
 from PIL import Image
 import numpy as np
 import tensorflow as tf
@@ -55,6 +56,8 @@ def main(argv):
 		input_images_np = np.zeros((batchsz, 256, 256, 3))
 
 		with open("/tmp/dogs.csv", "w") as dogfp:
+			dogfp.write("id,label\n")
+			sys.stderr.write("id,label\n")
 			def handle(files):
 				"""Take all the files, and run them through our classifier."""
 				sigmoids_np = sess.run(sigmoid_op, feed_dict={input_images_: input_images_np, \
@@ -63,6 +66,14 @@ def main(argv):
 				assert len(sigmoids_np) == len(files)
 
 				for filename, probability in zip(files, sigmoids_np):
+					match = re.match(r'^.*/([0-9]+)\.jpg$', filename)
+					if match:
+						# OK, this is ugly. But, I'm trying to make
+						# it so that we can _both_ submit to kaggle
+						# _and_ just run arbitrary files, without
+						# having to manually edit the files for
+						# kaggle.
+						filename = match.group(1)
 					dogfp.write("%s,%.7f\n" % (filename, probability))
 					sys.stderr.write("%s,%.7f\n" % (filename, probability))
 				while files:
@@ -80,7 +91,7 @@ def main(argv):
 					handle(files)
 					position[0] = 0
 
-			for dirname in argv:
+			for dirname in argv[1:]:
 				traverse(dirname, process)
 				if position[0] > 0:
 					handle(files)
