@@ -100,18 +100,15 @@ def process_images(training, start, data, queue):
 		sys.exit(0)
 
 #pylint: disable=too-many-locals,too-many-arguments
-def single_epoch(sess, epoch, info, logdir, input_images_, dog_predicates_, training_, action_op, loss_op, training):
+def single_epoch(num_processes, batchsz, sess, epoch, info, logdir, input_images_, dog_predicates_, training_, action_op, loss_op, training):
 	"""Run a single epoch."""
 	evaluation_mode = "train" if training else "validation"
-	batchsz = 32 
-
 	random.shuffle(info[evaluation_mode])
 	loss = 0
 	valcopy = None
 	if evaluation_mode == "validation":
 		valcopy = copy.deepcopy(info[evaluation_mode])
 
-	num_processes = 2 
 	pool = mp.Pool(processes=num_processes)
 	manager = mp.Manager()
 	queue = manager.Queue()
@@ -125,7 +122,7 @@ def single_epoch(sess, epoch, info, logdir, input_images_, dog_predicates_, trai
 	time.sleep(2)
 
 	count = 0
-	while not queue.empty():
+	while count < len(info[evaluation_mode]):
 		(start, np_input_images, np_dog_predicates, actualsz) = queue.get()
 		batchloss, preds = sess.run([loss_op, action_op], feed_dict={input_images_: np_input_images, dog_predicates_: np_dog_predicates, training_: training})
 		count += actualsz
@@ -151,7 +148,18 @@ def single_epoch(sess, epoch, info, logdir, input_images_, dog_predicates_, trai
 #pylint: disable=not-context-manager,too-many-locals,too-many-statements
 def main(argv):
 	"""This is the main program. D-uh."""
-	basedir = argv[0]
+	configfile = argv[0]
+	lrn = lambda x: x
+	with open(configfile, "r") as jsonfp:
+		config = json.load(jsonfp)
+		basedir = config["basedir"]
+		batchsz= config['batchsz']
+		layer1_kernel_sz = int(config["layer1_kernel_size"])
+		if config["local_response_normalization"]:
+			lrn = lambda x: tf.nn.lrn(x, 4, bias=1.0, alpha=0.001 / 9.0, beta=0.75)
+		num_processes = int(config["processes"])
+        chkpt_file = config['chkpt_file']
+
 	with tf.variable_scope("configuration"):
 		training_ = tf.placeholder(name="training_predicate", shape=(), dtype=tf.bool)
 
@@ -167,19 +175,19 @@ def main(argv):
 	# till eventually I just get a 1x1x1 layer with a sigmoid at the end?
 
 	with tf.variable_scope("conv1"):
-		conv1 = tf.layers.conv2d(input_images_, filters=64, kernel_size=(11, 11), strides=(1, 1), padding="same", activation=activation, kernel_initializer=tf.glorot_normal_initializer())
+		conv1 = lrn(tf.layers.conv2d(input_images_, filters=64, kernel_size=(layer1_kernel_sz, layer1_kernel_sz), strides=(1, 1), padding="same", activation=activation, kernel_initializer=tf.glorot_normal_initializer()))
 		dropped1 = tf.layers.dropout(conv1, rate=0.5, noise_shape=(1, 1, 64))
 		maxpool1 = tf.layers.max_pooling2d(dropped1, pool_size=(2, 2), strides=(2, 2), padding="same")
 		# Now, we should be at size 128x128x64
 
 	with tf.variable_scope("conv2"):
-		conv2 = tf.layers.conv2d(maxpool1, filters=128, kernel_size=(5, 5), strides=(1, 1), padding="same", activation=activation, kernel_initializer=tf.glorot_normal_initializer())
+		conv2 = lrn(tf.layers.conv2d(maxpool1, filters=128, kernel_size=(5, 5), strides=(1, 1), padding="same", activation=activation, kernel_initializer=tf.glorot_normal_initializer()))
 		dropped2 = tf.layers.dropout(conv2, rate=0.5, noise_shape=(1, 1, 128))
 		maxpool2 = tf.layers.max_pooling2d(dropped2, pool_size=(2, 2), strides=(2, 2), padding="same")
 		# Now, we should be at size 64x64x128
 
 	with tf.variable_scope("conv3"):
-		conv3 = tf.layers.conv2d(maxpool2, filters=256, kernel_size=(5, 5), strides=(1, 1), padding="same", activation=activation, kernel_initializer=tf.glorot_normal_initializer())
+		conv3 = lrn(tf.layers.conv2d(maxpool2, filters=256, kernel_size=(5, 5), strides=(1, 1), padding="same", activation=activation, kernel_initializer=tf.glorot_normal_initializer()))
 		dropped3 = tf.layers.dropout(conv3, rate=0.5, noise_shape=(1, 1, 256))
 		maxpool3 = tf.layers.max_pooling2d(dropped3, pool_size=(2, 2), strides=(2, 2), padding="same")
 		# Now, we should be at size 32x32x256
@@ -254,28 +262,30 @@ def main(argv):
 
 	with tf.Session() as sess:
 		sess.run(tf.global_variables_initializer())
+		with open(os.path.join(imagesdir, "info.json"), "r") as infofp:
+			info = json.load(infofp)
 		if os.path.exists(tensorboarddir):
 			shutil.rmtree(tensorboarddir)
-		if os.path.exists(os.path.join(restoredir, "bestsofar.ckpt.meta")):
-			ckpt = os.path.join(restoredir, "bestsofar.ckpt")
+		print os.path.join(restoredir, chkpt_file, "")
+		if os.path.exists(os.path.join(restoredir, chkpt_file, chkpt_file + ".meta")):
+			ckpt = os.path.join(restoredir, chkpt_file, chkpt_file)
 			sys.stderr.write("Restoring %s\n" % (ckpt))
+#			restorer = tf.train.import_meta_graph(os.path.join(restoredir, chkpt_file +".meta"))
+#			restorer.restore(sess, restoredir)
 			restorer = tf.train.Saver()
 			restorer.restore(sess, ckpt)
 		writer = tf.summary.FileWriter(tensorboarddir, sess.graph)
 		saver = tf.train.Saver()
 
-		with open(os.path.join(imagesdir, "info.json"), "r") as infofp:
-			info = json.load(infofp)
-
 		epoch = 0
-		best_ce = single_epoch(sess, epoch, info, logdir, input_images_, dog_predicates_, training_, loss_op=loss, action_op=predictions, training=False)
+		best_ce = single_epoch(num_processes, batchsz, sess, epoch, info, logdir, input_images_, dog_predicates_, training_, loss_op=loss, action_op=predictions, training=False)
 		sys.stderr.write("Starting with best_ce=%.7f\n" % (best_ce))
 		while True:
 			epoch_start = time.time()
 			epoch += 1
 			# one epoch.
-			trainloss = single_epoch(sess, epoch, info, logdir, input_images_, dog_predicates_, training_, loss_op=loss, action_op=step, training=True)
-			validationloss = single_epoch(sess, epoch, info, logdir, input_images_, dog_predicates_, training_, loss_op=loss, action_op=predictions, training=False)
+			trainloss = single_epoch(num_processes, batchsz, sess, epoch, info, logdir, input_images_, dog_predicates_, training_, loss_op=loss, action_op=step, training=True)
+			validationloss = single_epoch(num_processes, batchsz, sess, epoch, info, logdir, input_images_, dog_predicates_, training_, loss_op=loss, action_op=predictions, training=False)
 			tcost, vcost = sess.run([train_cost_scalar, validation_cost_scalar], feed_dict={train_cost_: trainloss, validation_cost_: validationloss})
 			writer.add_summary(tcost, epoch)
 			writer.add_summary(vcost, epoch)
@@ -284,7 +294,8 @@ def main(argv):
 			if best_ce is None or validationloss < best_ce:
 				new_best = "New Best"
 				best_ce = validationloss
-				saver.save(sess, os.path.join(tensorboarddir, "bestsofar.ckpt"))
+				sys.stderr.write("saving to %s" % chkpt_file)
+				saver.save(sess, os.path.join(restoredir,  chkpt_file, chkpt_file))
 				saver.save(sess, os.path.join(tensorboarddir, "last.ckpt"))
 
 			now = time.time()
