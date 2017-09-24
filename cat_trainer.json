@@ -1,0 +1,6 @@
+{
+	"processes": 1,
+	"basedir": "/tmp/dogs",
+	"layer1_kernel_size": 7,
+	"local_response_normalization": true
+}
