@@ -94,6 +94,7 @@ def process_images(training, start, data, queue):
 				resized = img.resize((256, 256), resample=Image.BICUBIC)
 			np_input_images[idx] = (np.array(resized) / 255.0) * 2.0 - 1.0
 		queue.put((start, np_input_images, np_dog_predicates, actualsz))
+		return None
 	except Exception as exc:
 		print exc
 		sys.exit(0)
@@ -102,7 +103,7 @@ def process_images(training, start, data, queue):
 def single_epoch(sess, epoch, info, logdir, input_images_, dog_predicates_, training_, action_op, loss_op, training):
 	"""Run a single epoch."""
 	evaluation_mode = "train" if training else "validation"
-	batchsz = 64
+	batchsz = 32 
 
 	random.shuffle(info[evaluation_mode])
 	loss = 0
@@ -110,7 +111,7 @@ def single_epoch(sess, epoch, info, logdir, input_images_, dog_predicates_, trai
 	if evaluation_mode == "validation":
 		valcopy = copy.deepcopy(info[evaluation_mode])
 
-	num_processes = 4
+	num_processes = 2 
 	pool = mp.Pool(processes=num_processes)
 	manager = mp.Manager()
 	queue = manager.Queue()
